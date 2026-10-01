@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CourseTest } from './CourseTest';
 import { useApp } from '../context/AppContext';
 import { NotesEditor } from './NotesEditor';
 import {
@@ -8,7 +9,8 @@ import {
   Search,
   CheckCheck,
   FileText,
-  ListVideo
+  ListVideo,
+  ClipboardCheck
 } from 'lucide-react';
 
 interface WorkspaceRightPanelProps {
@@ -17,8 +19,8 @@ interface WorkspaceRightPanelProps {
   isMobileDrawer?: boolean;
 }
 
-export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({ 
-  embedded = false, 
+export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
+  embedded = false,
   className = '',
   isMobileDrawer = false,
 }) => {
@@ -50,26 +52,24 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
 
   return (
     <aside id="tour-right-panel" className={`w-full ${embedded ? 'h-[620px] sm:h-[700px]' : 'h-full'} flex flex-col min-h-0 bg-white rounded-2xl 2xl:rounded-3xl border-2 border-[#121417] shadow-solid overflow-hidden ${className}`}>
-      {/* 1. YouTube-Style Segmented Tab Switcher: [ Playlist (Queue) ] | [ Notes ] */}
+      {/* Tab Switcher: [ Playlist ] | [ Notes ] | [ Test ] */}
       <div className="px-3 py-2.5 border-b border-[#121417]/10 bg-[#F9F8F5]/80 flex items-center justify-between gap-2 flex-shrink-0">
         <div className="flex items-center gap-1.5 p-1 bg-white rounded-2xl border-2 border-[#121417] shadow-solid-xs flex-1">
           <button
             id={isMobileDrawer ? undefined : "tour-queue-tab"}
             data-tour="tour-queue-tab"
             onClick={() => setWorkspaceRightTab('playlist')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all ${
-              workspaceRightTab === 'playlist'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all ${workspaceRightTab === 'playlist'
                 ? 'bg-[#121417] text-[#EBF755] border border-black shadow-2xs'
                 : 'text-[#121417]/70 hover:text-[#121417] hover:bg-black/5'
-            }`}
+              }`}
           >
             <ListVideo className="w-3.5 h-3.5" />
             <span>Playlist</span>
-            <span className={`text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full border ${
-              workspaceRightTab === 'playlist' 
-                ? 'bg-[#EBF755] text-black border-black shadow-2xs' 
+            <span className={`text-[10px] font-mono font-black px-1.5 py-0.2 rounded-full border ${workspaceRightTab === 'playlist'
+                ? 'bg-[#EBF755] text-black border-black shadow-2xs'
                 : 'bg-[#121417]/10 text-[#121417] border-transparent'
-            }`}>
+              }`}>
               {totalVideos}
             </span>
           </button>
@@ -77,20 +77,34 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
           <button
             id={isMobileDrawer ? undefined : "tour-notes-tab"}
             onClick={() => setWorkspaceRightTab('notes')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all ${
-              workspaceRightTab === 'notes'
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all ${workspaceRightTab === 'notes'
                 ? 'bg-[#121417] text-[#EBF755] border border-black shadow-2xs'
                 : 'text-[#121417]/70 hover:text-[#121417] hover:bg-black/5'
-            }`}
+              }`}
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Notes</span>
           </button>
+
+          <button
+            onClick={() => setWorkspaceRightTab('test')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all ${workspaceRightTab === 'test'
+                ? 'bg-[#121417] text-[#EBF755] border border-black shadow-2xs'
+                : 'text-[#121417]/70 hover:text-[#121417] hover:bg-black/5'
+              }`}
+          >
+            <ClipboardCheck className="w-3.5 h-3.5" />
+            <span>Test</span>
+          </button>
         </div>
       </div>
 
-      {/* 3. Tab Body: Playlist vs Notes */}
-      {workspaceRightTab === 'notes' ? (
+      {/* Tab Body: Test vs Notes vs Playlist */}
+      {workspaceRightTab === 'test' ? (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <CourseTest />
+        </div>
+      ) : workspaceRightTab === 'notes' ? (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <NotesEditor isMobileDrawer={isMobileDrawer} />
         </div>
@@ -104,7 +118,7 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
               <span>{Math.round((completedVideos / (totalVideos || 1)) * 100)}%</span>
             </div>
             <div className="w-full h-1.5 bg-[#121417]/10 rounded-full overflow-hidden mt-1">
-              <div 
+              <div
                 className="h-full bg-[#EBF755] border-r border-[#121417]/30 transition-all duration-300"
                 style={{ width: `${Math.round((completedVideos / (totalVideos || 1)) * 100)}%` }}
               />
@@ -128,31 +142,28 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
               <div className="flex gap-1.5 bg-[#F9F8F5] p-1 rounded-full border border-[#121417]/10 overflow-x-auto">
                 <button
                   onClick={() => setFilterMode('all')}
-                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${
-                    filterMode === 'all' 
-                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs' 
+                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${filterMode === 'all'
+                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs'
                       : 'bg-white text-[#121417]/70 hover:text-[#121417] border border-[#121417]/15'
-                  }`}
+                    }`}
                 >
                   All ({totalVideos})
                 </button>
                 <button
                   onClick={() => setFilterMode('pending')}
-                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${
-                    filterMode === 'pending' 
-                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs' 
+                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${filterMode === 'pending'
+                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs'
                       : 'bg-white text-[#121417]/70 hover:text-[#121417] border border-[#121417]/15'
-                  }`}
+                    }`}
                 >
                   Remaining ({totalVideos - completedVideos})
                 </button>
                 <button
                   onClick={() => setFilterMode('completed')}
-                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${
-                    filterMode === 'completed' 
-                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs' 
+                  className={`px-3 py-1 rounded-full font-black transition-all whitespace-nowrap ${filterMode === 'completed'
+                      ? 'bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs'
                       : 'bg-white text-[#121417]/70 hover:text-[#121417] border border-[#121417]/15'
-                  }`}
+                    }`}
                 >
                   Done ({completedVideos})
                 </button>
@@ -183,20 +194,18 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
                   <div
                     key={video.id}
                     onClick={() => setActiveVideoId(video.id)}
-                    className={`group flex items-start gap-3 p-2.5 rounded-2xl cursor-pointer transition-all duration-150 ${
-                      isActive
+                    className={`group flex items-start gap-3 p-2.5 rounded-2xl cursor-pointer transition-all duration-150 ${isActive
                         ? 'bg-[#EBF755] border-2 border-[#121417] shadow-solid text-black'
                         : 'hover:bg-[#F9F8F5] border-2 border-transparent hover:border-[#121417]/20'
-                    }`}
+                      }`}
                   >
                     {/* YouTube 16:9 Thumbnail on Left with Duration Badge */}
-                    <div className={`relative w-28 sm:w-32 xl:w-36 aspect-video rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 border-2 ${
-                      isActive ? 'border-[#121417] shadow-2xs' : 'border-[#121417]/15'
-                    }`}>
+                    <div className={`relative w-28 sm:w-32 xl:w-36 aspect-video rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 border-2 ${isActive ? 'border-[#121417] shadow-2xs' : 'border-[#121417]/15'
+                      }`}>
                       {video.youtubeId ? (
-                        <img 
-                          src={`https://i.ytimg.com/vi/${video.youtubeId}/mqdefault.jpg`} 
-                          alt={video.title} 
+                        <img
+                          src={`https://i.ytimg.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                          alt={video.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                           loading="lazy"
                         />
@@ -225,13 +234,12 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
 
                     {/* Video Info on Right */}
                     <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
-                      <h4 className={`text-xs xl:text-[13px] font-bold leading-snug line-clamp-2 ${
-                        video.completed 
-                          ? 'text-[#121417]/50 line-through' 
-                          : isActive 
-                          ? 'text-black font-black' 
-                          : 'text-[#121417]'
-                      }`}>
+                      <h4 className={`text-xs xl:text-[13px] font-bold leading-snug line-clamp-2 ${video.completed
+                          ? 'text-[#121417]/50 line-through'
+                          : isActive
+                            ? 'text-black font-black'
+                            : 'text-[#121417]'
+                        }`}>
                         {video.title}
                       </h4>
 

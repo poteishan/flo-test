@@ -4,9 +4,9 @@ import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import debounce from 'lodash.debounce';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { 
-  fetchUserCoursesFromCloud, 
-  upsertUserCourseToCloud, 
+import {
+  fetchUserCoursesFromCloud,
+  upsertUserCourseToCloud,
   deleteUserCourseFromCloud,
   fetchUserFoldersFromCloud,
   upsertUserFolderToCloud,
@@ -107,8 +107,8 @@ interface AppContextType {
   setIsSidebarOpen: (open: boolean) => void;
   isNotesOpen: boolean;
   setIsNotesOpen: (open: boolean) => void;
-  workspaceRightTab: 'playlist' | 'notes';
-  setWorkspaceRightTab: (tab: 'playlist' | 'notes') => void;
+  workspaceRightTab: 'playlist' | 'notes' | 'test';
+  setWorkspaceRightTab: (tab: 'playlist' | 'notes' | 'test') => void;
   isRightPanelOpen: boolean;
   setIsRightPanelOpen: (open: boolean) => void;
   isFloatingTimerOpen: boolean;
@@ -167,8 +167,8 @@ export interface AppProviderProps {
   userId?: string | null;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ 
-  children, 
+export const AppProvider: React.FC<AppProviderProps> = ({
+  children,
   hasClerkKey = false,
   userId = null
 }) => {
@@ -180,7 +180,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.COMPLETED_VIDEOS);
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return {};
   });
 
@@ -197,7 +197,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PLAYBACK_POSITIONS);
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return {};
   });
 
@@ -218,7 +218,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
       playbackPositionsRef.current = updated;
       try {
         localStorage.setItem(STORAGE_KEYS.PLAYBACK_POSITIONS, JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
   }, []);
@@ -239,7 +239,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
       playbackPositionsRef.current = updated;
       try {
         localStorage.setItem(STORAGE_KEYS.PLAYBACK_POSITIONS, JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
   }, []);
@@ -294,7 +294,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch {}
+    } catch { }
     return [
       { id: 'general', name: 'General Notes', createdAt: Date.now() }
     ];
@@ -342,19 +342,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
-    } catch {}
+    } catch { }
   }, [folders]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_FOLDER, activeFolderId);
-    } catch {}
+    } catch { }
   }, [activeFolderId]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_NOTE, activeNoteKey);
-    } catch {}
+    } catch { }
   }, [activeNoteKey]);
 
   const [isNoteSaving, setIsNoteSaving] = useState<boolean>(false);
@@ -365,7 +365,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.POMODORO_SETTINGS);
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return DEFAULT_POMO_SETTINGS;
   });
 
@@ -411,7 +411,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         }
         return parsed;
       }
-    } catch {}
+    } catch { }
     return DEFAULT_POMO_STATS;
   });
 
@@ -427,7 +427,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   // 5. UI Layout toggles
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isNotesOpen, setIsNotesOpen] = useState<boolean>(true);
-  const [workspaceRightTab, setWorkspaceRightTab] = useState<'playlist' | 'notes'>('playlist');
+  const [workspaceRightTab, setWorkspaceRightTab] = useState<'playlist' | 'notes' | 'test'>('playlist');
   const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(true);
   const [isFloatingTimerOpen, setIsFloatingTimerOpen] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -552,7 +552,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
       setCourses(updatedCourses);
       try {
         localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(updatedCourses));
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -629,13 +629,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.POMODORO_SETTINGS, JSON.stringify(pomodoroSettings));
-    } catch {}
+    } catch { }
   }, [pomodoroSettings]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.POMODORO_STATS, JSON.stringify(pomodoroStats));
-    } catch {}
+    } catch { }
   }, [pomodoroStats]);
 
   // Record daily study activity and increment streak at >= 10 mins of watch/focus time
@@ -686,7 +686,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
 
       try {
         localStorage.setItem(STORAGE_KEYS.POMODORO_STATS, JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       if (userId) {
         upsertUserStreakToCloud(userId, updated);
@@ -716,7 +716,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
           isVideoPlaying = ytPlayer.getPlayerState() === 1;
         }
-      } catch {}
+      } catch { }
 
       // 2. Pomodoro work sprint active
       const isPomoSprint = isPomodoroRunning && pomodoroMode === 'work';
@@ -779,7 +779,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
       // Synchronously write to localStorage immediately!
       try {
         localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       // Update completed registry and persist immediately
       const targetCourse = prev.find(c => c.id === courseId);
@@ -799,7 +799,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         completedVideosRef.current = nextReg;
         try {
           localStorage.setItem(STORAGE_KEYS.COMPLETED_VIDEOS, JSON.stringify(nextReg));
-        } catch {}
+        } catch { }
         return nextReg;
       });
 
@@ -835,7 +835,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
       // Synchronously write to localStorage immediately!
       try {
         localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       if (isFirstTime) {
         recordDailyActivity(0);
@@ -870,7 +870,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         completedVideosRef.current = nextReg;
         try {
           localStorage.setItem(STORAGE_KEYS.COMPLETED_VIDEOS, JSON.stringify(nextReg));
-        } catch {}
+        } catch { }
         return nextReg;
       });
 
@@ -892,7 +892,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
 
       try {
         localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       setCompletedVideosRegistry(reg => {
         const nextReg = { ...reg };
@@ -911,7 +911,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         completedVideosRef.current = nextReg;
         try {
           localStorage.setItem(STORAGE_KEYS.COMPLETED_VIDEOS, JSON.stringify(nextReg));
-        } catch {}
+        } catch { }
         return nextReg;
       });
 
@@ -956,8 +956,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({
 
       const mergedVideos = preEnriched.map(uv => {
         const existing = existingMap.get(uv.id) || (uv.youtubeId ? existingMap.get(uv.youtubeId) : undefined);
-        const isCompleted = uv.completed || 
-          existing?.completed || 
+        const isCompleted = uv.completed ||
+          existing?.completed ||
           registry[`${courseId}::${uv.id}`] ||
           (uv.youtubeId ? registry[`${courseId}::${uv.youtubeId}`] : false) ||
           false;
@@ -995,7 +995,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
 
       try {
         localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(updated));
-      } catch {}
+      } catch { }
 
       return updated;
     });
@@ -1325,22 +1325,22 @@ export const AppProvider: React.FC<AppProviderProps> = ({
 
   const resetPomodoro = useCallback(() => {
     setIsPomodoroRunning(false);
-    const duration = pomodoroMode === 'work' 
-      ? pomodoroSettings.workDuration 
-      : pomodoroMode === 'shortBreak' 
-      ? pomodoroSettings.shortBreakDuration 
-      : pomodoroSettings.longBreakDuration;
+    const duration = pomodoroMode === 'work'
+      ? pomodoroSettings.workDuration
+      : pomodoroMode === 'shortBreak'
+        ? pomodoroSettings.shortBreakDuration
+        : pomodoroSettings.longBreakDuration;
     setPomodoroTimeLeft(duration * 60);
   }, [pomodoroMode, pomodoroSettings]);
 
   const handleSetPomodoroMode = useCallback((mode: PomodoroMode) => {
     setPomodoroMode(mode);
     setIsPomodoroRunning(false);
-    const duration = mode === 'work' 
-      ? pomodoroSettings.workDuration 
-      : mode === 'shortBreak' 
-      ? pomodoroSettings.shortBreakDuration 
-      : pomodoroSettings.longBreakDuration;
+    const duration = mode === 'work'
+      ? pomodoroSettings.workDuration
+      : mode === 'shortBreak'
+        ? pomodoroSettings.shortBreakDuration
+        : pomodoroSettings.longBreakDuration;
     setPomodoroTimeLeft(duration * 60);
   }, [pomodoroSettings]);
 
@@ -1371,7 +1371,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({
         };
         try {
           localStorage.setItem(STORAGE_KEYS.POMODORO_STATS, JSON.stringify(updated));
-        } catch {}
+        } catch { }
         if (userId) {
           upsertUserStreakToCloud(userId, updated);
         }
