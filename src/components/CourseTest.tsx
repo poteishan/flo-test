@@ -6,11 +6,13 @@ import {
   XCircle,
   RotateCcw,
   ChevronRight,
+  ChevronLeft,
   ClipboardCheck,
   BookOpen,
   ListChecks,
   PlayCircle,
   ArrowLeft,
+  Clock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { generateCourseQuiz, isAiConfigured } from '../services/gemini';
@@ -19,6 +21,15 @@ import type { QuizQuestion, QuizScope } from '../services/gemini';
 type Mode = 'course' | 'progress' | 'lecture';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
+
+// 75 -> "1:15", 3725 -> "1:02:05"
+const fmtTime = (sec: number) => {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+};
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,12 +41,14 @@ const hash = (s: string) => {
 };
 
 export const CourseTest: React.FC = () => {
-  const { activeCourse, activeVideoId } = useApp();
+  const { activeCourse, activeVideoId, setActiveVideoId, seekTo, toggleVideoCompletion } = useApp();
 
   const [stage, setStage] = useState<'setup' | 'quiz'>('setup');
   const [mode, setMode] = useState<Mode>('course');
-  const [lectureId, setLectureId] = useState('');
   const [quizLabel, setQuizLabel] = useState('');
+  const [questionCount, setQuestionCount] = useState(10);
+  const [quizNotice, setQuizNotice] = useState<string | undefined>(undefined);
+  const [quizVideoId, setQuizVideoId] = useState<string | undefined>(undefined); // video the timestamps belong to
 
   const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
@@ -48,9 +61,11 @@ export const CourseTest: React.FC = () => {
 
   const courseId = activeCourse?.id;
 
-  const openQuiz = (qs: QuizQuestion[], label: string) => {
+  const openQuiz = (qs: QuizQuestion[], label: string, opts?: { notice?: string; videoId?: string }) => {
     setQuestions(qs);
     setQuizLabel(label);
+    setQuizNotice(opts?.notice);
+    setQuizVideoId(opts?.videoId);
     setAnswers(new Array(qs.length).fill(null));
     setCurrent(0);
     setFinished(false);
@@ -69,8 +84,9 @@ export const CourseTest: React.FC = () => {
   // New course selected: go back to the picker, defaulting the lecture to the one being watched.
   useEffect(() => {
     backToSetup();
-    setMode('course');
-    setLectureId(activeVideoId || activeCourse?.videos[0]?.id || '');
+    const vs = activeCourse?.videos ?? [];
+    const done = vs.filter((v) => v.completed).length;
+    setMode(vs.length > 0 && done === vs.length ? 'course' : done > 0 ? 'progress' : 'lecture');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
@@ -80,17 +96,53 @@ export const CourseTest: React.FC = () => {
     if (!loading) return;
     setProgress(4);
     const id = setInterval(() => {
-      setProgress((p) => (p >= 92 ? p : p + Math.max(0.4, (92 - p) * 0.05)));
+      // Watching a whole video takes longer, so the bar moves more slowly for single-lecture tests.
+      const rate = mode === 'lecture' ? 0.02 : 0.05;
+      setProgress((p) => (p >= 92 ? p : p + Math.max(0.2, (92 - p) * rate)));
     }, 250);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   if (!activeCourse) return null;
 
   const videos = activeCourse.videos;
   const completedCount = videos.filter((v) => v.completed).length;
-  const lectureIndex = Math.max(0, videos.findIndex((v) => v.id === lectureId));
+  const allCompleted = videos.length > 0 && completedCount === videos.length;
+
+  // How many questions each test type offers.
+  //  - Entire course: 10 / 20 / 30
+  //  - My progress: 10 / 20 once 5 or more lectures are completed (otherwise 10)
+  //  - One lecture: 10
+  const allowedCounts = (m: Mode): number[] =>
+    m === 'course' ? [10, 20, 30] : m === 'progress' && completedCount >= 5 ? [10, 20] : [10];
+  const countFor = (m: Mode) => (allowedCounts(m).includes(questionCount) ? questionCount : 10);
+  // The single-lecture test always uses the video that is open in the player.
+  const lectureIndex = Math.max(0, videos.findIndex((v) => v.id === activeVideoId));
   const lecture = videos[lectureIndex];
+  // Jump the player to the moment in the video where the answer is explained.
+  const goToTimestamp = (seconds: number) => {
+    if (!quizVideoId) return;
+    const needsSwitch = quizVideoId !== activeVideoId;
+    if (needsSwitch) setActiveVideoId(quizVideoId);
+    // After switching videos, wait for the player to load before seeking (seeking twice is harmless).
+    (needsSwitch ? [1500, 3500] : [0]).forEach((d) => setTimeout(() => seekTo(seconds), d));
+  };
+
+  const renderTimestamp = (qq: QuizQuestion) => {
+    if (qq.timestamp === undefined || !quizVideoId) return null;
+    return (
+      <button
+        onClick={() => goToTimestamp(qq.timestamp as number)}
+        title="Jump to this moment in the video (AI estimate, may be a few seconds off)"
+        className="inline-flex items-center gap-1.5 max-w-full text-[11px] font-black text-[#121417] bg-[#EBF755]/70 hover:bg-[#EBF755] border border-[#121417]/40 rounded-lg px-2 py-1 transition-colors"
+      >
+        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="truncate">Answer explained at {fmtTime(qq.timestamp)}</span>
+      </button>
+    );
+  };
+
   const stillLoadingPlaylist = videos.some((v) => /loading course playlist/i.test(v.title));
 
   // What the selected test type covers, plus a cache key so each scope keeps its own saved test.
@@ -113,7 +165,11 @@ export const CourseTest: React.FC = () => {
       const n = lectureIndex + 1;
       const title = lecture?.title ?? '';
       return {
-        scope: { kind: 'lecture', label: `Lecture ${n}: ${title}`, videos: [{ n, title }] },
+        scope: {
+          kind: 'lecture',
+          label: `Lecture ${n}: ${title}`,
+          videos: [{ n, title, youtubeId: lecture?.youtubeId }],
+        },
         key: `lecture:${lecture?.id ?? ''}:${hash(title)}`,
       };
     }
@@ -127,7 +183,7 @@ export const CourseTest: React.FC = () => {
     };
   };
 
-  const cacheKeyFor = (key: string) => `flo-quiz:v2:${activeCourse.id}:${key}`;
+  const cacheKeyFor = (key: string) => `flo-quiz:v3:${activeCourse.id}:${key}:q${countFor(mode)}`;
 
   const current_scope = scopeFor(mode);
   let hasSaved = false;
@@ -139,7 +195,7 @@ export const CourseTest: React.FC = () => {
 
   const canStart =
     isAiConfigured || hasSaved
-      ? !stillLoadingPlaylist && !(mode === 'progress' && completedCount === 0) && !(mode === 'lecture' && !lecture)
+      ? !stillLoadingPlaylist && !(mode === 'progress' && completedCount === 0) && !(mode === 'lecture' && !lecture?.completed) && !(mode === 'course' && !allCompleted)
       : false;
 
   const begin = async (forceNew = false) => {
@@ -154,7 +210,7 @@ export const CourseTest: React.FC = () => {
         if (raw) {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved?.questions) && saved.questions.length > 0) {
-            openQuiz(saved.questions, scope.label);
+            openQuiz(saved.questions, scope.label, { notice: saved.notice, videoId: saved.videoId });
             return;
           }
         }
@@ -165,15 +221,16 @@ export const CourseTest: React.FC = () => {
 
     setLoading(true);
     try {
-      const qs = await generateCourseQuiz(activeCourse, 10, scope);
+      const { questions: qs, notice } = await generateCourseQuiz(activeCourse, countFor(mode), scope);
+      const videoId = scope.kind === 'lecture' ? lecture?.id : undefined;
       try {
-        localStorage.setItem(ck, JSON.stringify({ label: scope.label, questions: qs }));
+        localStorage.setItem(ck, JSON.stringify({ label: scope.label, questions: qs, notice, videoId }));
       } catch {
         /* storage full, quiz still works */
       }
       setProgress(100);
       await wait(400);
-      openQuiz(qs, scope.label);
+      openQuiz(qs, scope.label, { notice, videoId });
     } catch (e: any) {
       setError(e?.message ?? 'Something went wrong while creating the test.');
     } finally {
@@ -193,7 +250,9 @@ export const CourseTest: React.FC = () => {
       pct >= 100
         ? 'Test ready'
         : pct < 25
-          ? 'Reading the course outline...'
+          ? mode === 'lecture'
+            ? 'Watching the lecture...'
+            : 'Reading the course outline...'
           : pct < 60
             ? 'Writing questions...'
             : pct < 90
@@ -221,7 +280,11 @@ export const CourseTest: React.FC = () => {
         </div>
 
         <p className="text-[11px] font-medium text-[#121417]/55 max-w-[240px]">
-          This usually takes 5 to 20 seconds.
+          {mode === 'lecture'
+            ? 'Well Done! now Test for skills for real you!'
+            : countFor(mode) > 10
+              ? 'Longer tests take a bit more time, usually under a minute.'
+              : 'This usually takes 5 to 20 seconds.'}
         </p>
       </div>
     );
@@ -230,7 +293,15 @@ export const CourseTest: React.FC = () => {
   // ---------- Setup: choose what to be tested on ----------
   if (stage === 'setup' || !questions) {
     const options: { id: Mode; icon: React.ElementType; title: string; desc: string; disabled?: boolean }[] = [
-      { id: 'course', icon: BookOpen, title: 'Entire course', desc: `All ${videos.length} lecture${videos.length === 1 ? '' : 's'}` },
+      {
+        id: 'course',
+        icon: BookOpen,
+        title: 'Entire course',
+        desc: allCompleted
+          ? `All ${videos.length} lecture${videos.length === 1 ? '' : 's'} completed`
+          : `Unlocks when every lecture is completed (${completedCount}/${videos.length} done)`,
+        disabled: !allCompleted,
+      },
       {
         id: 'progress',
         icon: ListChecks,
@@ -238,7 +309,7 @@ export const CourseTest: React.FC = () => {
         desc: completedCount > 0 ? `Only the ${completedCount} lecture${completedCount === 1 ? '' : 's'} you completed` : 'Mark a lecture as completed first',
         disabled: completedCount === 0,
       },
-      { id: 'lecture', icon: PlayCircle, title: 'One lecture', desc: 'Pick a single video' },
+      { id: 'lecture', icon: PlayCircle, title: 'One lecture', desc: 'The video you have open (must be marked completed)' },
     ];
 
     return (
@@ -278,20 +349,81 @@ export const CourseTest: React.FC = () => {
           })}
         </div>
 
-        {mode === 'lecture' && (
+        {allowedCounts(mode).length > 1 && !(mode === 'course' && !allCompleted) && (
           <div>
-            <label className="block text-[11px] font-bold text-[#121417]/70 mb-1">Lecture</label>
-            <select
-              value={lecture?.id ?? ''}
-              onChange={(e) => setLectureId(e.target.value)}
-              className="w-full bg-[#F9F8F5] text-[#121417] text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#121417]/20 focus:outline-none focus:ring-2 focus:ring-[#EBF755]"
-            >
-              {videos.map((v, i) => (
-                <option key={v.id} value={v.id}>
-                  {i + 1}. {v.title}
-                </option>
-              ))}
-            </select>
+            <p className="text-[11px] font-bold text-[#121417]/70 mb-1">Number of questions</p>
+            <div className="flex gap-2">
+              {allowedCounts(mode).map((n) => {
+                const selected = countFor(mode) === n;
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setQuestionCount(n)}
+                    className={`flex-1 py-2 rounded-xl border-2 text-xs font-black transition-all active:scale-95 ${
+                      selected
+                        ? 'bg-[#121417] text-[#EBF755] border-[#121417] shadow-solid-xs'
+                        : 'bg-white text-[#121417] border-[#121417]/20 hover:border-[#121417]'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {mode === 'progress' && completedCount > 0 && completedCount < 5 && (
+          <p className="text-[10px] font-bold text-[#121417]/55">
+            Complete 5 lectures to choose a 20-question test ({completedCount}/5 done).
+          </p>
+        )}
+
+        {mode === 'course' && !allCompleted && (
+          <div className="rounded-xl border-2 border-[#121417]/20 bg-[#F9F8F5] p-3 space-y-1.5">
+            <p className="text-xs font-black text-[#121417]">
+              {completedCount} of {videos.length} lectures completed
+            </p>
+            <div className="w-full h-1.5 bg-[#121417]/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#EBF755] border-r border-[#121417]/30"
+                style={{ width: `${Math.round((completedCount / (videos.length || 1)) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] font-medium text-[#121417]/70">
+              Complete the whole course to unlock this test. You can use the check-all button in the Playlist tab.
+            </p>
+          </div>
+        )}
+
+        {mode === 'lecture' && lecture && (
+          <div className="rounded-xl border-2 border-[#121417]/20 bg-[#F9F8F5] p-3 space-y-2">
+            <p className="text-[10px] font-bold text-[#121417]/60">The test covers the video you have open</p>
+            <p className="text-xs font-black text-[#121417]">
+              Lecture {lectureIndex + 1}: {lecture.title}
+            </p>
+            {lecture.completed ? (
+              <p className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Marked as completed
+              </p>
+            ) : (
+              <>
+                <p className="text-[11px] font-medium text-[#121417]/70">
+                  Mark this lecture as completed to unlock its test.
+                </p>
+                <button
+                  onClick={() => toggleVideoCompletion(activeCourse.id, lecture.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border-2 border-[#121417] shadow-solid-xs text-[11px] font-black text-[#121417] active:scale-95"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Mark as completed
+                </button>
+              </>
+            )}
+            <p className="text-[10px] font-medium text-[#121417]/50">
+              To test a different lecture, open it from the Playlist tab first.
+            </p>
           </div>
         )}
 
@@ -340,6 +472,7 @@ export const CourseTest: React.FC = () => {
           <div className="text-3xl font-black text-[#121417]">
             {score}/{questions.length}
           </div>
+          {quizNotice && <div className="text-[10px] font-bold text-[#121417]/70 mt-1">{quizNotice}</div>}
           <div className="text-xs font-bold text-[#121417]/80">
             {answeredCount} of {questions.length} answered.{' '}
             {score >= 8 ? 'Excellent work' : score >= 5 ? 'Good progress, review the misses below' : 'Keep going, rewatch the lectures and retry'}
@@ -365,6 +498,7 @@ export const CourseTest: React.FC = () => {
               )}
               <p className="text-[11px] font-bold text-emerald-700 pl-6">Correct: {q.options[q.correctIndex]}</p>
               {q.explanation && <p className="text-[11px] font-medium text-[#121417]/70 pl-6">{q.explanation}</p>}
+              {renderTimestamp(q) && <div className="pl-6 pt-0.5">{renderTimestamp(q)}</div>}
             </div>
           );
         })}
@@ -372,7 +506,7 @@ export const CourseTest: React.FC = () => {
         <div className="space-y-2 pb-2">
           <div className="flex gap-2">
             <button
-              onClick={() => openQuiz(questions, quizLabel)}
+              onClick={() => openQuiz(questions, quizLabel, { notice: quizNotice, videoId: quizVideoId })}
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border-2 border-[#121417] shadow-solid-xs text-xs font-black text-[#121417] active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -395,7 +529,7 @@ export const CourseTest: React.FC = () => {
             className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border-2 border-[#121417]/30 hover:border-[#121417] text-xs font-black text-[#121417] active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Change test type</span>
+            <span>Go back</span>
           </button>
         </div>
       </div>
@@ -413,6 +547,7 @@ export const CourseTest: React.FC = () => {
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="p-3 border-b border-[#121417]/10 flex-shrink-0">
         <p className="text-[10px] font-bold text-[#121417]/55 truncate mb-0.5">{quizLabel}</p>
+        {quizNotice && <p className="text-[10px] font-bold text-amber-700 mb-0.5">{quizNotice}</p>}
         <div className="flex items-center justify-between text-[10px] font-bold text-[#121417]/70">
           <span>
             Question {current + 1} of {questions.length}
@@ -458,6 +593,8 @@ export const CourseTest: React.FC = () => {
             {q.explanation}
           </p>
         )}
+
+        {answered && renderTimestamp(q)}
       </div>
 
       <div className="p-3 border-t border-[#121417]/10 flex-shrink-0">
@@ -485,20 +622,33 @@ export const CourseTest: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrent((c) => Math.max(0, c - 1))}
+                disabled={current === 0}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-white border-2 border-[#121417] shadow-solid-xs text-xs font-black text-[#121417] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Previous</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (!isLast) setCurrent((c) => c + 1);
+                  else if (unansweredCount === 0) setFinished(true);
+                  else setConfirmEnd(true); // some questions skipped: ask before finishing
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs text-xs font-black active:scale-95"
+              >
+                <span>{isLast ? 'See results' : 'Next'}</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <button
               onClick={() => (unansweredCount === 0 ? setFinished(true) : setConfirmEnd(true))}
-              className="px-4 py-2.5 rounded-xl bg-white border-2 border-[#121417] shadow-solid-xs text-xs font-black text-[#121417] active:scale-95"
+              className="w-full text-[11px] font-black text-[#121417]/65 hover:text-[#121417] underline underline-offset-2"
             >
               End test
-            </button>
-            <button
-              onClick={() => (isLast ? setFinished(true) : setCurrent((c) => c + 1))}
-              disabled={!answered}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid-xs text-xs font-black active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span>{isLast ? 'See results' : 'Next question'}</span>
-              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

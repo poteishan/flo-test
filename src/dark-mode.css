@@ -1,0 +1,235 @@
+/*
+ * Dark mode for the whole app.
+ *
+ * How it works: the <html> element gets a "dark" class (see ThemeToggle.tsx). This file then remaps
+ * the colours the app hard-codes in its Tailwind classes (white cards, cream #F9F8F5 backgrounds,
+ * ink #121417 text/borders/buttons) to dark equivalents. No component needs "dark:" classes.
+ *
+ * Import it AFTER your main stylesheet:  import './dark-mode.css';
+ *
+ * Selector notes: [class~="x"] matches the exact class token only (so "text-[#121417]" does not match
+ * "text-[#121417]/70"), and [class*="x"] matches any class containing the text.
+ * This file is plain, un-layered CSS, so it wins over Tailwind utilities (v3 and v4).
+ */
+
+html.dark {
+  color-scheme: dark; /* dark scrollbars, form controls, etc. */
+  --dm-bg: #0f1215; /* page background (was cream #F9F8F5) */
+  --dm-surface: #171b1f; /* cards and panels (was white) */
+  --dm-raised: #2a2f35; /* dark-ink buttons that are not lime-texted */
+  --dm-text: #f2f1ea; /* main text (was ink #121417) */
+  --dm-lime: #ebf755;
+  --dm-ink: #121417;
+}
+
+html.dark,
+html.dark body,
+html.dark #root {
+  background-color: var(--dm-bg);
+  color: var(--dm-text);
+}
+
+/* ---------- Backgrounds ---------- */
+html.dark .bg-white {
+  background-color: var(--dm-surface);
+}
+html.dark [class~="bg-[#F9F8F5]"] {
+  background-color: var(--dm-bg);
+}
+html.dark [class*="bg-[#F9F8F5]/"] {
+  background-color: rgba(15, 18, 21, 0.92);
+}
+html.dark [class*="bg-white/"] {
+  background-color: rgba(23, 27, 31, 0.88);
+}
+html.dark .bg-slate-50,
+html.dark .bg-slate-100,
+html.dark .bg-slate-200,
+html.dark .bg-gray-50,
+html.dark .bg-gray-100 {
+  background-color: var(--dm-bg);
+}
+
+/* Other near-white creams used in the landing page mockup */
+html.dark [class~="bg-[#FDFCF7]"] {
+  background-color: var(--dm-surface);
+}
+html.dark [class~="bg-[#F4F2EB]"] {
+  background-color: var(--dm-bg);
+}
+/* Gradient cards (e.g. the dev-joke banner: cream > white > cream) */
+html.dark [class*="from-[#F9F8F5]"] {
+  background-image: linear-gradient(to right, var(--dm-bg), var(--dm-surface), var(--dm-bg));
+}
+
+/* Ink (dark) buttons: raised grey by default, but lime with dark text when they had lime text
+   (active tabs, primary buttons), so they stay visible on a dark page. */
+html.dark [class~="bg-[#121417]"] {
+  background-color: var(--dm-raised);
+}
+html.dark [class~="bg-[#121417]"][class~="text-[#EBF755]"] {
+  background-color: var(--dm-lime);
+  color: var(--dm-ink);
+  border-color: var(--dm-ink);
+}
+
+/* Translucent ink fills (progress tracks, pills) become translucent light fills */
+html.dark [class~="bg-[#121417]/5"],
+html.dark [class~="bg-[#121417]/10"] {
+  background-color: rgba(242, 241, 234, 0.1);
+}
+html.dark [class~="bg-[#121417]/15"],
+html.dark [class~="bg-[#121417]/20"] {
+  background-color: rgba(242, 241, 234, 0.18);
+}
+html.dark [class~="bg-black/5"],
+html.dark [class~="bg-black/10"] {
+  background-color: rgba(242, 241, 234, 0.1);
+}
+
+/* Hover backgrounds */
+html.dark [class~="hover:bg-black/5"]:hover,
+html.dark [class~="hover:bg-[#121417]/5"]:hover {
+  background-color: rgba(242, 241, 234, 0.08);
+}
+html.dark [class~="hover:bg-[#F9F8F5]"]:hover,
+html.dark [class~="hover:bg-slate-100"]:hover,
+html.dark [class~="hover:bg-slate-50"]:hover {
+  background-color: rgba(242, 241, 234, 0.08);
+}
+
+/* ---------- Text ---------- */
+html.dark [class~="text-[#121417]"],
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-gray-900 {
+  color: var(--dm-text);
+}
+html.dark [class~="text-[#121417]/90"],
+html.dark [class~="text-[#121417]/85"],
+html.dark [class~="text-[#121417]/80"],
+html.dark [class~="text-[#121417]/75"] {
+  color: rgba(242, 241, 234, 0.85);
+}
+html.dark [class~="text-[#121417]/70"],
+html.dark [class~="text-[#121417]/65"],
+html.dark [class~="text-[#121417]/60"],
+html.dark .text-slate-600,
+html.dark .text-slate-700,
+html.dark .text-gray-600 {
+  color: rgba(242, 241, 234, 0.68);
+}
+html.dark [class~="text-[#121417]/55"],
+html.dark [class~="text-[#121417]/50"],
+html.dark [class~="text-[#121417]/45"],
+html.dark [class~="text-[#121417]/40"],
+html.dark .text-slate-500 {
+  color: rgba(242, 241, 234, 0.5);
+}
+html.dark [class~="hover:text-[#121417]"]:hover,
+html.dark [class~="hover:text-black"]:hover {
+  color: var(--dm-text);
+}
+html.dark ::placeholder {
+  color: rgba(242, 241, 234, 0.4);
+}
+
+/* Status colours used by the quiz and badges, lightened for dark backgrounds */
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.16);
+}
+html.dark .bg-red-50,
+html.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.16);
+}
+html.dark .text-emerald-900,
+html.dark .text-emerald-800 {
+  color: #a7f3d0;
+}
+html.dark .text-emerald-700,
+html.dark .text-emerald-600 {
+  color: #6ee7b7;
+}
+html.dark .text-red-900,
+html.dark .text-red-800 {
+  color: #fecaca;
+}
+html.dark .text-red-700,
+html.dark .text-red-600 {
+  color: #f87171;
+}
+html.dark .text-amber-700 {
+  color: #fcd34d;
+}
+
+/* ---------- Borders ---------- */
+html.dark [class~="border-[#121417]"] {
+  border-color: rgba(242, 241, 234, 0.45);
+}
+html.dark [class~="border-[#121417]/10"],
+html.dark [class~="border-[#121417]/5"] {
+  border-color: rgba(242, 241, 234, 0.1);
+}
+html.dark [class~="border-[#121417]/15"],
+html.dark [class~="border-[#121417]/20"] {
+  border-color: rgba(242, 241, 234, 0.18);
+}
+html.dark [class~="border-[#121417]/30"],
+html.dark [class~="border-[#121417]/40"] {
+  border-color: rgba(242, 241, 234, 0.3);
+}
+html.dark [class~="hover:border-[#121417]"]:hover {
+  border-color: rgba(242, 241, 234, 0.7);
+}
+html.dark [class~="hover:border-[#121417]/20"]:hover {
+  border-color: rgba(242, 241, 234, 0.3);
+}
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-gray-200 {
+  border-color: rgba(242, 241, 234, 0.14);
+}
+
+/* ---------- Shadows (the hard offset "solid" shadows would be invisible in dark) ---------- */
+html.dark [class*="shadow-solid"] {
+  box-shadow: 3px 3px 0 0 rgba(242, 241, 234, 0.22) !important;
+}
+html.dark [class*="shadow-solid-xs"] {
+  box-shadow: 2px 2px 0 0 rgba(242, 241, 234, 0.22) !important;
+}
+
+/* ---------- Light accents (lime, pastel blue, cream) stay light, so their text must stay dark ----------
+   Without this, text that inherits the page's light colour becomes unreadable on them. */
+html.dark :is([class~="bg-[#EBF755]"], [class~="bg-[#E2EF43]"], [class~="bg-[#FFF4D4]"], [class~="bg-[#D4E4FC]"], [class~="bg-[#C2DBFB]"], [class*="bg-[#EBF755]/"]) {
+  color: var(--dm-ink);
+  border-color: var(--dm-ink);
+}
+html.dark :is([class~="bg-[#EBF755]"], [class~="bg-[#E2EF43]"], [class~="bg-[#FFF4D4]"], [class~="bg-[#D4E4FC]"], [class~="bg-[#C2DBFB]"], [class*="bg-[#EBF755]/"]):hover {
+  color: var(--dm-ink);
+}
+html.dark :is([class~="bg-[#EBF755]"], [class~="bg-[#E2EF43]"], [class~="bg-[#FFF4D4]"], [class~="bg-[#D4E4FC]"], [class~="bg-[#C2DBFB]"], [class*="bg-[#EBF755]/"])[class*="text-[#121417]/"] {
+  color: rgba(18, 20, 23, 0.72);
+}
+/* Children of a light accent that set their own text colour */
+html.dark :is([class~="bg-[#EBF755]"], [class~="bg-[#E2EF43]"], [class~="bg-[#FFF4D4]"], [class~="bg-[#D4E4FC]"], [class~="bg-[#C2DBFB]"], [class*="bg-[#EBF755]/"]) :is([class~="text-[#121417]"], [class~="text-slate-800"], [class~="text-slate-900"]) {
+  color: var(--dm-ink);
+}
+html.dark :is([class~="bg-[#EBF755]"], [class~="bg-[#E2EF43]"], [class~="bg-[#FFF4D4]"], [class~="bg-[#D4E4FC]"], [class~="bg-[#C2DBFB]"], [class*="bg-[#EBF755]/"]) :is([class*="text-[#121417]/"], [class~="text-slate-500"], [class~="text-slate-600"], [class~="text-slate-700"]) {
+  color: rgba(18, 20, 23, 0.72);
+}
+/* Pastel note cards use inline background colours, so keep dark text inside them */
+html.dark [style*="background"] [class~="text-[#121417]"] {
+  color: var(--dm-ink);
+}
+html.dark [style*="background"] [class*="text-[#121417]/"] {
+  color: rgba(18, 20, 23, 0.7);
+}
+
+/* Smooth switch between themes */
+html.dark body,
+html.dark header,
+html.dark aside {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}

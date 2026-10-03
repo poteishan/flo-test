@@ -13,6 +13,7 @@ import {
 import { AuthBar } from './AuthBar';
 import { BrandLogo } from './BrandLogo';
 import { formatTime } from '../utils/youtube';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export const Header: React.FC = () => {
   const {
@@ -92,6 +93,7 @@ export const Header: React.FC = () => {
 
         {/* Right: Timer, Streak, and (Tablet+) Developer/Auth */}
         <div className="flex items-center gap-1.5 sm:gap-3">
+           <ThemeToggle />
           {/* Focus Timer Button (To the left of Streak) */}
           <button
             id="tour-timer-btn"

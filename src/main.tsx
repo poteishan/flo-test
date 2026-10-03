@@ -2,6 +2,7 @@ import { StrictMode, Component, type ErrorInfo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
 import './index.css';
+import './dark-mode.css';
 import App from './App.tsx';
 
 const FALLBACK_CLERK_KEY = 'pk_test_Y29uY2lzZS1jYXQtNjkxOS5jbGVyay5hY2NvdW50cy5kZXYk';
