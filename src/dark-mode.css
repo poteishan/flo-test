@@ -54,6 +54,9 @@ html.dark .bg-gray-100 {
 html.dark [class~="bg-[#FDFCF7]"] {
   background-color: var(--dm-surface);
 }
+html.dark [class~="bg-[#FCFBF9]"] {
+  background-color: var(--dm-surface);
+}
 html.dark [class~="bg-[#F4F2EB]"] {
   background-color: var(--dm-bg);
 }
@@ -225,6 +228,70 @@ html.dark [style*="background"] [class~="text-[#121417]"] {
 }
 html.dark [style*="background"] [class*="text-[#121417]/"] {
   color: rgba(18, 20, 23, 0.7);
+}
+
+/* ---------- Notes workspace ----------
+   The notes view includes an off-white sidebar and a user-selectable inline editor
+   background. Target them by role so a dark theme never leaves light surfaces behind
+   after the text palette changes to light. */
+html.dark .notes-view {
+  background-color: var(--dm-bg);
+}
+
+html.dark .notes-shell {
+  background-color: var(--dm-surface);
+  border-color: rgba(242, 241, 234, 0.45);
+}
+
+html.dark .notes-sidebar,
+html.dark .notes-list,
+html.dark .notes-editor-panel {
+  background-color: var(--dm-surface);
+}
+
+/* Preserve a user's coloured notes, but remap the default white canvas. */
+html.dark .note-editor[style*="background-color: rgb(255, 255, 255)"],
+html.dark .note-editor[style*="background-color: #ffffff"],
+html.dark .note-editor[style*="background-color:#ffffff"] {
+  background-color: var(--dm-surface) !important;
+}
+
+/* The inline-background rule above keeps coloured notes dark-texted. Restore the
+   light editor palette only for notes that use the default white canvas. */
+html.dark .note-editor--default :is(
+  [class~="text-[#121417]"],
+  [class~="text-[#121417]/90"],
+  [class~="text-[#121417]/85"],
+  [class~="text-[#121417]/80"],
+  [class~="text-[#121417]/75"]
+) {
+  color: var(--dm-text);
+}
+
+html.dark .note-editor--default :is(
+  [class~="text-[#121417]/70"],
+  [class~="text-[#121417]/65"],
+  [class~="text-[#121417]/60"]
+) {
+  color: rgba(242, 241, 234, 0.72);
+}
+
+html.dark .note-editor--default :is(
+  [class~="text-[#121417]/55"],
+  [class~="text-[#121417]/50"],
+  [class~="text-[#121417]/45"],
+  [class~="text-[#121417]/40"]
+) {
+  color: rgba(242, 241, 234, 0.58);
+}
+
+html.dark .note-editor--default .ProseMirror,
+html.dark .note-editor--default .ProseMirror :is(h1, h2, h3) {
+  color: var(--dm-text);
+}
+
+html.dark .note-editor--default .ProseMirror blockquote {
+  border-left-color: rgba(242, 241, 234, 0.55);
 }
 
 /* Smooth switch between themes */

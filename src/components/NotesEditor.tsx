@@ -265,7 +265,9 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
 
   return (
     <div 
-      className={`flex-1 flex flex-col min-h-0 transition-colors duration-200 ${
+      className={`note-editor ${
+        (note.color || '#ffffff').toLowerCase() === '#ffffff' ? 'note-editor--default' : 'note-editor--tinted'
+      } flex-1 flex flex-col min-h-0 transition-colors duration-200 ${
         fullWidth ? 'w-full' : 'border-l border-[#121417]/10'
       }`}
       style={{ backgroundColor: note.color || '#ffffff' }}

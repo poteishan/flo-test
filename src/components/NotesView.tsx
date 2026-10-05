@@ -220,14 +220,14 @@ export const NotesView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#F9F8F5] overflow-hidden p-2 sm:p-4 md:p-6">
-      <div className="flex-1 flex min-h-0 bg-white rounded-2xl md:rounded-3xl border-2 border-[#121417] shadow-solid overflow-hidden">
+    <div className="notes-view flex-1 flex flex-col min-h-0 bg-[#F9F8F5] overflow-hidden p-2 sm:p-4 md:p-6">
+      <div className="notes-shell flex-1 flex min-h-0 bg-white rounded-2xl md:rounded-3xl border-2 border-[#121417] shadow-solid overflow-hidden">
         
         {/* =========================================================================
             PANE 1: LEFT SIDEBAR (Folders & Navigation)
            ========================================================================= */}
         <aside 
-          className={`w-full md:w-64 lg:w-72 border-r-2 border-[#121417]/10 flex flex-col min-h-0 bg-[#FCFBF9] ${
+          className={`notes-sidebar w-full md:w-64 lg:w-72 border-r-2 border-[#121417]/10 flex flex-col min-h-0 bg-[#FCFBF9] ${
             mobilePane === 'folders' ? 'flex' : 'hidden md:flex'
           }`}
         >
@@ -438,7 +438,7 @@ export const NotesView: React.FC = () => {
             PANE 2: MIDDLE LIST (Notes in selected folder)
            ========================================================================= */}
         <section 
-          className={`w-full md:w-72 lg:w-80 xl:w-96 border-r-2 border-[#121417]/10 flex flex-col min-h-0 bg-white ${
+          className={`notes-list w-full md:w-72 lg:w-80 xl:w-96 border-r-2 border-[#121417]/10 flex flex-col min-h-0 bg-white ${
             mobilePane === 'notes' ? 'flex' : 'hidden md:flex'
           }`}
         >
@@ -590,7 +590,7 @@ export const NotesView: React.FC = () => {
             PANE 3: RIGHT NOTE EDITOR
            ========================================================================= */}
         <main 
-          className={`flex-1 flex flex-col min-h-0 bg-white ${
+          className={`notes-editor-panel flex-1 flex flex-col min-h-0 bg-white ${
             mobilePane === 'editor' ? 'flex' : 'hidden md:flex'
           }`}
         >

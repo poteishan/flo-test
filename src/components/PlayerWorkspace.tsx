@@ -14,7 +14,9 @@ import {
   FolderPlus,
   RotateCcw,
   LayoutGrid,
-  ChevronDown
+  ChevronDown,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { resolvePlaylistTitles, isGenericLectureTitle, enrichVideosWithKnownData } from '../utils/youtubeTitles';
 import { WorkspaceAdBanner } from './WorkspaceAdBanner';
@@ -51,6 +53,7 @@ export const PlayerWorkspace: React.FC = () => {
     setPlayerState,
   } = useApp();
 
+  const playerFrameRef = useRef<HTMLDivElement>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerInstanceRef = useRef<any>(null);
   const [currentTimeSec, setCurrentTimeSec] = useState<number>(0);
@@ -58,6 +61,7 @@ export const PlayerWorkspace: React.FC = () => {
   const [playerStatus, setPlayerStatus] = useState<'playing' | 'paused' | 'ready' | 'loading'>('loading');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState<boolean>(false);
   const [isControlsExpanded, setIsControlsExpanded] = useState<boolean>(false);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   
   // Persistent Playback & Auto-completion Feedback
   const [resumeBanner, setResumeBanner] = useState<{ seconds: number; formatted: string } | null>(null);
@@ -73,9 +77,22 @@ export const PlayerWorkspace: React.FC = () => {
     activeVideoRef.current = activeVideo;
   }, [activeCourse, activeVideo]);
 
-  // "F" toggles fullscreen on the YouTube player itself, so its own controls (including
-  // its exit-fullscreen button) stay in charge. When the video iframe has focus, YouTube's
-  // built-in "F" shortcut handles the key instead, since keystrokes go into the iframe.
+  const togglePlayerFullscreen = useCallback(() => {
+    const playerFrame = playerFrameRef.current;
+    if (!playerFrame) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+
+    // Fullscreen the app-owned frame rather than the cross-origin iframe. This keeps the
+    // player stable and lets overlays such as the timer celebration render correctly.
+    playerFrame.requestFullscreen?.().catch(() => {});
+  }, []);
+
+  // "F" toggles fullscreen unless the user is typing. When the YouTube iframe has focus,
+  // YouTube's own shortcut remains in charge because its key events do not reach this page.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -99,22 +116,24 @@ export const PlayerWorkspace: React.FC = () => {
 
       if (e.key.toLowerCase() !== 'f') return;
 
-      const iframe: HTMLIFrameElement | null =
-        playerInstanceRef.current?.getIframe?.() || document.getElementById('youtube-player-element') as HTMLIFrameElement | null;
-      if (!iframe || iframe.tagName !== 'IFRAME') return;
-
       e.preventDefault();
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      } else {
-        iframe.requestFullscreen?.().catch(() => {});
-      }
+      togglePlayerFullscreen();
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
+  }, [togglePlayerFullscreen]);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsPlayerFullscreen(document.fullscreenElement === playerFrameRef.current);
+    };
+
+    syncFullscreenState();
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
   }, []);
 
 
@@ -615,7 +634,7 @@ export const PlayerWorkspace: React.FC = () => {
         )}
 
         {/* 16:9 Responsive Video Aspect Ratio */}
-        <div id="tour-video-player" className="relative w-full rounded-2xl 2xl:rounded-3xl overflow-hidden aspect-video group border-2 border-[#121417] shadow-solid bg-black">
+        <div ref={playerFrameRef} id="tour-video-player" className="relative w-full rounded-2xl 2xl:rounded-3xl overflow-hidden aspect-video group border-2 border-[#121417] shadow-solid bg-black">
           <div id="youtube-player-element" ref={playerContainerRef} className="w-full h-full" />
         </div>
 
@@ -662,6 +681,15 @@ export const PlayerWorkspace: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={togglePlayerFullscreen}
+                className="flex items-center justify-center p-1.5 sm:p-2 rounded-full bg-white hover:bg-slate-50 border border-[#121417]/30 text-[#121417] transition-colors"
+                title={isPlayerFullscreen ? 'Exit fullscreen (F)' : 'Fullscreen video (F)'}
+                aria-label={isPlayerFullscreen ? 'Exit fullscreen' : 'Fullscreen video'}
+              >
+                {isPlayerFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+              </button>
+
               {/* Expand/Collapse Details Toggle - Mobile/Tablet only (desktop always shows details) */}
               <button
                 onClick={() => setIsControlsExpanded(!isControlsExpanded)}
