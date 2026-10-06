@@ -9,7 +9,6 @@ import {
   Clock,
   Play,
   Pause,
-  BookmarkPlus,
   Sparkles,
   FolderPlus,
   RotateCcw,
@@ -38,8 +37,6 @@ export const PlayerWorkspace: React.FC = () => {
     toggleVideoCompletion,
     setVideoCompleted,
     setYtPlayer,
-    saveNoteForCurrentVideo,
-    getNoteForCurrentVideo,
     setIsAddModalOpen,
     updateCourseVideos,
     updateVideoDuration,
@@ -47,9 +44,7 @@ export const PlayerWorkspace: React.FC = () => {
     getPlaybackPosition,
     clearPlaybackPosition,
     setCurrentView,
-    setWorkspaceRightTab,
     isRightPanelOpen,
-    setIsRightPanelOpen,
     setPlayerState,
   } = useApp();
 
