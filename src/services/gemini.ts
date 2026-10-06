@@ -13,7 +13,7 @@ export interface QuizQuestion {
 export interface QuizScope {
   kind: 'course' | 'progress' | 'lecture';
   label: string; // shown in the UI, e.g. "Lecture 4: Loops"
-  videos: { n: number; title: string; youtubeId?: string }[]; // n = lecture number (1-based)
+  videos: { n: number; title: string; youtubeId?: string; durationSec?: number }[]; // n = lecture number (1-based); durationSec = real video length, used to reject out-of-range timestamps
 }
 
 export interface QuizResult {
@@ -59,7 +59,16 @@ const buildSchema = (withTimestamp: boolean) => ({
   },
 });
 
+const fmtLength = (sec: number) => {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+};
+
 function buildPrompt(course: Course, count: number, scope: QuizScope, withVideo: boolean): string {
+  const videoLengthSec = scope.kind === 'lecture' ? scope.videos[0]?.durationSec : undefined;
   const lectureList = scope.videos
     .map((v) => `${v.n}. ${v.title}`)
     .join('\n')
@@ -89,8 +98,11 @@ function buildPrompt(course: Course, count: number, scope: QuizScope, withVideo:
           .slice(0, 4000)}\n`
       : '';
 
+  const lengthRule = videoLengthSec
+    ? ` The video is exactly ${fmtLength(videoLengthSec)} long (${videoLengthSec} seconds), so every "timestamp" MUST be between 0 and ${videoLengthSec}. Give plain total seconds, not H:MM:SS.`
+    : ' Give plain total seconds, not H:MM:SS.';
   const timestampRule = withVideo
-    ? `\n- "timestamp" is the number of SECONDS from the very start of the video at the moment the answer is explained or shown, i.e. where a learner should rewind to. Use the real position in the video as a whole number. Never give a value larger than the video's length.`
+    ? `\n- "timestamp" is the number of SECONDS from the very start of the video at the moment the answer is explained or shown, i.e. where a learner should rewind to. Use the real position in the video as a whole number. Never give a value larger than the video's length.${lengthRule}`
     : '';
 
   return `You are an expert instructor. Write a test of exactly ${count} multiple-choice questions that checks real understanding of the topics taught in the part of the online course described below.
@@ -209,6 +221,84 @@ function parseQuestions(text: string, count: number, withTimestamp: boolean): Qu
   return questions;
 }
 
+/**
+ * Makes sure EVERY question has a timestamp inside the video.
+ * 1) Questions with a missing or out-of-range time are sent back to Gemini (with the video) to be located again.
+ * 2) Anything still wrong is repaired locally, e.g. 2:20:15 on a 1-hour video was meant as 20:15.
+ */
+async function ensureTimestamps(
+  questions: QuizQuestion[],
+  videoUrl: string,
+  maxSec: number | undefined,
+): Promise<QuizQuestion[]> {
+  const isValid = (t?: number) => t !== undefined && (!maxSec || t <= maxSec);
+  const badIdx = questions.map((q, i) => (isValid(q.timestamp) ? -1 : i)).filter((i) => i >= 0);
+  if (badIdx.length === 0) return questions;
+
+  const fixed = questions.map((q) => ({ ...q }));
+
+  // Step 1: ask Gemini to find the moments again, for just the questions that need it.
+  try {
+    const list = badIdx
+      .map(
+        (i) =>
+          `${i}. Question: ${questions[i].question}\n   Correct answer: ${questions[i].options[questions[i].correctIndex]}\n   Explanation: ${questions[i].explanation}`,
+      )
+      .join('\n');
+    const lengthText = maxSec
+      ? ` The video is exactly ${fmtLength(maxSec)} long (${maxSec} seconds), so every timestamp MUST be between 0 and ${maxSec}.`
+      : '';
+    const text = await callGemini(
+      [
+        { file_data: { file_uri: videoUrl } },
+        {
+          text: `Watch this video. For each numbered question below, give the moment in the video, in total SECONDS from the very start (a whole number, not H:MM:SS), where the answer is explained or shown.${lengthText}\n\n${list}\n\nReturn one item per question using its number as "index".`,
+        },
+      ],
+      { mediaResolution: 'MEDIA_RESOLUTION_LOW', temperature: 0.2 },
+      {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: { index: { type: 'INTEGER' }, timestamp: { type: 'INTEGER' } },
+          required: ['index', 'timestamp'],
+        },
+      },
+    );
+    const found = JSON.parse(text.replace(/```json|```/g, '').trim());
+    if (Array.isArray(found)) {
+      for (const f of found) {
+        if (badIdx.includes(f?.index) && Number.isFinite(f?.timestamp) && f.timestamp >= 0 && isValid(Math.round(f.timestamp))) {
+          fixed[f.index].timestamp = Math.round(f.timestamp);
+        }
+      }
+    }
+  } catch {
+    /* fall through to local repair */
+  }
+
+  // Step 2: local repair for anything still missing or out of range.
+  const lastResort = maxSec ?? 0;
+  fixed.forEach((q, i) => {
+    if (isValid(q.timestamp)) return;
+    if (q.timestamp !== undefined && maxSec) {
+      const withoutHours = q.timestamp % 3600; // 8415s (2:20:15) -> 1215s (20:15)
+      q.timestamp = withoutHours <= maxSec ? withoutHours : maxSec;
+      return;
+    }
+    // No time at all: borrow the closest question's time (or the start of the video).
+    let nearest: number | undefined;
+    for (let d = 1; d < fixed.length && nearest === undefined; d++) {
+      const a = fixed[i - d]?.timestamp;
+      const b = fixed[i + d]?.timestamp;
+      if (a !== undefined && isValid(a)) nearest = a;
+      else if (b !== undefined && isValid(b)) nearest = b;
+    }
+    q.timestamp = nearest ?? Math.min(0, lastResort);
+  });
+  return fixed;
+}
+
 export async function generateCourseQuiz(
   course: Course,
   count = 10,
@@ -237,7 +327,8 @@ export async function generateCourseQuiz(
         { mediaResolution: 'MEDIA_RESOLUTION_LOW' }, // keeps long videos within token limits
         buildSchema(true),
       );
-      return { questions: parseQuestions(text, count, true) };
+      const parsed = parseQuestions(text, count, true);
+      return { questions: await ensureTimestamps(parsed, videoUrl, target?.durationSec) };
     } catch (e) {
       const code = e instanceof GeminiHttpError && e.status ? ` (error ${e.status})` : '';
       notice = `Gemini could not analyze the video${code}, so this test has no timestamps. The video must be public, and very long videos can exceed the free-tier limit.`;

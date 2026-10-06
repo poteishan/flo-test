@@ -15,6 +15,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { parseTimestampToSeconds } from '../utils/youtube';
 import { generateCourseQuiz, isAiConfigured } from '../services/gemini';
 import type { QuizQuestion, QuizScope } from '../services/gemini';
 
@@ -41,7 +42,7 @@ const hash = (s: string) => {
 };
 
 export const CourseTest: React.FC = () => {
-  const { activeCourse, activeVideoId, setActiveVideoId, seekTo, toggleVideoCompletion } = useApp();
+  const { activeCourse, activeVideoId, setActiveVideoId, seekTo, toggleVideoCompletion, ytPlayer } = useApp();
 
   const [stage, setStage] = useState<'setup' | 'quiz'>('setup');
   const [mode, setMode] = useState<Mode>('course');
@@ -129,8 +130,23 @@ export const CourseTest: React.FC = () => {
     (needsSwitch ? [1500, 3500] : [0]).forEach((d) => setTimeout(() => seekTo(seconds), d));
   };
 
+  // Real length of a lecture in seconds: the live player knows it best, otherwise the saved "H:MM:SS" string.
+  const durationSecFor = (videoId: string | undefined): number | undefined => {
+    if (!videoId) return undefined;
+    if (videoId === activeVideoId && ytPlayer && typeof ytPlayer.getDuration === 'function') {
+      const d = Number(ytPlayer.getDuration());
+      if (Number.isFinite(d) && d > 0) return Math.floor(d);
+    }
+    const stored = videos.find((v) => v.id === videoId)?.duration;
+    const parsed = stored ? parseTimestampToSeconds(stored) : null;
+    return parsed && parsed > 0 ? parsed : undefined;
+  };
+
   const renderTimestamp = (qq: QuizQuestion) => {
     if (qq.timestamp === undefined || !quizVideoId) return null;
+    // Hide timestamps past the end of the video (also covers tests saved before this check existed).
+    const maxSec = durationSecFor(quizVideoId);
+    if (maxSec && qq.timestamp > maxSec) return null;
     return (
       <button
         onClick={() => goToTimestamp(qq.timestamp as number)}
@@ -168,7 +184,7 @@ export const CourseTest: React.FC = () => {
         scope: {
           kind: 'lecture',
           label: `Lecture ${n}: ${title}`,
-          videos: [{ n, title, youtubeId: lecture?.youtubeId }],
+          videos: [{ n, title, youtubeId: lecture?.youtubeId, durationSec: durationSecFor(lecture?.id) }],
         },
         key: `lecture:${lecture?.id ?? ''}:${hash(title)}`,
       };
@@ -183,7 +199,7 @@ export const CourseTest: React.FC = () => {
     };
   };
 
-  const cacheKeyFor = (key: string) => `flo-quiz:v3:${activeCourse.id}:${key}:q${countFor(mode)}`;
+  const cacheKeyFor = (key: string) => `flo-quiz:v5:${activeCourse.id}:${key}:q${countFor(mode)}`;
 
   const current_scope = scopeFor(mode);
   let hasSaved = false;
