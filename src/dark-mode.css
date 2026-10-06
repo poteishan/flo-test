@@ -300,3 +300,20 @@ html.dark header,
 html.dark aside {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* ---------- Mark as Done button ----------
+   Its hover class "hover:bg-[#EBF755]/30" contains "bg-[#EBF755]/", so the light-accent rules above
+   wrongly forced dark text and a dark border onto its dark (not completed) state. Restore it. */
+html.dark .workspace-action-button:not([class~="bg-[#EBF755]"]) {
+  color: var(--dm-text);
+  border-color: rgba(242, 241, 234, 0.45);
+}
+html.dark .workspace-action-button:not([class~="bg-[#EBF755]"]):hover {
+  color: var(--dm-ink);
+  background-color: var(--dm-lime);
+  border-color: var(--dm-ink);
+}
+html.dark .workspace-action-button[class~="bg-[#EBF755]"] {
+  color: var(--dm-ink);
+  border-color: rgba(242, 241, 234, 0.45);
+}
