@@ -506,21 +506,6 @@ export const PlayerWorkspace: React.FC = () => {
     }
   };
 
-  // Quick timestamp note insertion
-  const handleQuickTimestampNote = useCallback(() => {
-    let currentSec = 0;
-    if (playerInstanceRef.current && typeof playerInstanceRef.current.getCurrentTime === 'function') {
-      currentSec = Math.floor(playerInstanceRef.current.getCurrentTime());
-    }
-    const formatted = formatTime(currentSec);
-    const existing = getNoteForCurrentVideo();
-    const tag = `<p><br></p><p>▶ [${formatted}] </p>`;
-    saveNoteForCurrentVideo({ content: existing.content + tag });
-    // Reveal notes tab in the right panel
-    setWorkspaceRightTab('notes');
-    setIsRightPanelOpen(true);
-  }, [getNoteForCurrentVideo, saveNoteForCurrentVideo, setWorkspaceRightTab, setIsRightPanelOpen]);
-
   if (!activeCourse || !activeVideo) {
     return (
       <main className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#F9F8F5]">
