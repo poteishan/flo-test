@@ -613,18 +613,17 @@ export const PlayerWorkspace: React.FC = () => {
           <div className="animate-fade-in flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#121417] text-[#EBF755] border-2 border-[#121417] shadow-solid mb-3">
             <div className="flex items-center gap-2 text-xs font-bold">
               <RotateCcw className="w-4 h-4 text-[#EBF755]" />
-              <span>Resumed playback from <strong className="underline decoration-[#EBF755] font-mono text-white ml-0.5">{resumeBanner.formatted}</strong></span>
+              <span>Resumed playback from <strong className="underline decoration-[#EBF755] font-mono text-black ml-0.5">{resumeBanner.formatted}</strong></span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleStartOver}
-                className="px-3 py-1 rounded-full text-xs font-black bg-[#EBF755] text-black hover:bg-white transition-all shadow-xs active:scale-95"
-              >
+                className="px-3 py-1 rounded-full text-xs font-black bg-[#EBF755] text-black hover:bg-white transition-all shadow-xs active:scale-95">
                 Start Over
               </button>
               <button
                 onClick={() => setResumeBanner(null)}
-                className="text-white/60 hover:text-white p-1 text-xs"
+                className="text-black/60 p-1 text-xs"
                 title="Dismiss"
               >
                 ✕
@@ -737,21 +736,10 @@ export const PlayerWorkspace: React.FC = () => {
 
             {/* Quick Actions */}
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
-              {/* Timestamp Note Quick Button */}
-              <button
-                id="tour-quick-timestamp-btn"
-                onClick={handleQuickTimestampNote}
-                className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-white hover:bg-[#EBF755]/20 text-[#121417] text-xs font-black border-2 border-[#121417] shadow-solid-xs transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
-                title="Insert current video timestamp into notes"
-              >
-                <BookmarkPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Timestamp Note [{formatTime(currentTimeSec)}]</span>
-              </button>
-
               {/* Mark Completed Toggle */}
               <button
                 onClick={() => toggleVideoCompletion(activeCourse.id, activeVideo.id)}
-                className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-black border-2 border-[#121417] transition-all hover:scale-105 active:scale-95 whitespace-nowrap ${
+                className={`workspace-action-button flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-black border-2 border-[#121417] transition-all hover:scale-105 active:scale-95 whitespace-nowrap ${
                   activeVideo.completed
                     ? 'bg-[#EBF755] text-black shadow-solid'
                     : 'bg-white text-[#121417] hover:bg-[#EBF755]/30 shadow-solid-xs'
