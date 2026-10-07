@@ -113,6 +113,7 @@ Rules:
 - ${focus}
 - Difficulty: EASY to MEDIUM. Ask simple recall and basic-understanding questions about what the lecture itself teaches. No tricky edge cases, no multi-step puzzles, no advanced or "what if" extensions.
 - Ask ONLY about content that is actually taught, said or shown in the lecture. Never use outside knowledge, and never ask about related topics the lecture does not cover, even if they belong to the same subject. ${withVideo ? 'Every question must be answerable by someone who simply watched the video.' : 'Stick to the basic core concepts the lecture titles directly name; do not go beyond them.'}
+- Test the SUBJECT being taught (its concepts, definitions, methods, steps, examples and results), not the video as a piece of content. NEVER ask about: the speaker's or host's personal stories, jokes, anecdotes or background; who the speaker is or what they did before; greetings, intros, outros or recaps of what the video will cover; sponsors, ads, promotions, courses or products being sold; "like / subscribe / comment" requests; viewer comments, questions from the audience or replies to comments; channel news, upcoming videos or social media; or the speaker's opinions that are not part of the lesson. If a part of the video is not teaching the subject, skip it.
 - No two questions should test the same idea.
 - Each question has exactly 4 options and exactly one correct answer.
 - Distractors must be plausible, not silly.

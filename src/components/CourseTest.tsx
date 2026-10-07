@@ -212,7 +212,7 @@ export const CourseTest: React.FC = () => {
     };
   };
 
-  const cacheKeyFor = (key: string) => `flo-quiz:v6:${activeCourse.id}:${key}:q${countFor(mode)}`;
+  const cacheKeyFor = (key: string) => `flo-quiz:v7:${activeCourse.id}:${key}:q${countFor(mode)}`;
 
   const current_scope = scopeFor(mode);
   let hasSaved = false;
