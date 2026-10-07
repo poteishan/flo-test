@@ -122,10 +122,10 @@ export const CourseTest: React.FC = () => {
   const lectureIndex = Math.max(0, videos.findIndex((v) => v.id === activeVideoId));
   const lecture = videos[lectureIndex];
   // Jump the player to the moment in the video where the answer is explained.
-  const goToTimestamp = (seconds: number) => {
-    if (!quizVideoId) return;
-    const needsSwitch = quizVideoId !== activeVideoId;
-    if (needsSwitch) setActiveVideoId(quizVideoId);
+  const goToTimestamp = (seconds: number, videoId: string | undefined) => {
+    if (!videoId) return;
+    const needsSwitch = videoId !== activeVideoId;
+    if (needsSwitch) setActiveVideoId(videoId);
     // After switching videos, wait for the player to load before seeking (seeking twice is harmless).
     (needsSwitch ? [1500, 3500] : [0]).forEach((d) => setTimeout(() => seekTo(seconds), d));
   };
@@ -138,23 +138,29 @@ export const CourseTest: React.FC = () => {
       if (Number.isFinite(d) && d > 0) return Math.floor(d);
     }
     const stored = videos.find((v) => v.id === videoId)?.duration;
+    if (stored === '25:00') return undefined; // placeholder length given to videos whose real length is not loaded yet
     const parsed = stored ? parseTimestampToSeconds(stored) : null;
     return parsed && parsed > 0 ? parsed : undefined;
   };
 
   const renderTimestamp = (qq: QuizQuestion) => {
-    if (qq.timestamp === undefined || !quizVideoId) return null;
+    // "My progress" questions carry their own lecture; single-lecture tests use the lecture they were made for.
+    const vid = qq.videoId ?? quizVideoId;
+    if (qq.timestamp === undefined || !vid) return null;
     // Hide timestamps past the end of the video (also covers tests saved before this check existed).
-    const maxSec = durationSecFor(quizVideoId);
+    const maxSec = durationSecFor(vid);
     if (maxSec && qq.timestamp > maxSec) return null;
+    const lectureNo = qq.videoId ? videos.findIndex((v) => v.id === qq.videoId) + 1 : 0;
     return (
       <button
-        onClick={() => goToTimestamp(qq.timestamp as number)}
+        onClick={() => goToTimestamp(qq.timestamp as number, vid)}
         title="Jump to this moment in the video (AI estimate, may be a few seconds off)"
         className="inline-flex items-center gap-1.5 max-w-full text-[11px] font-black text-[#121417] bg-[#EBF755]/70 hover:bg-[#EBF755] border border-[#121417]/40 rounded-lg px-2 py-1 transition-colors"
       >
         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="truncate">Answer explained at {fmtTime(qq.timestamp)}</span>
+        <span className="truncate">
+          {lectureNo > 0 ? `Lecture ${lectureNo} · ` : ''}Answer explained at {fmtTime(qq.timestamp)}
+        </span>
       </button>
     );
   };
@@ -165,9 +171,16 @@ export const CourseTest: React.FC = () => {
   const scopeFor = (m: Mode): { scope: QuizScope; key: string } => {
     if (m === 'progress') {
       const items = videos
-        .map((v, i) => ({ n: i + 1, title: v.title, done: v.completed }))
+        .map((v, i) => ({
+          n: i + 1,
+          title: v.title,
+          done: v.completed,
+          id: v.id,
+          youtubeId: v.youtubeId,
+          durationSec: durationSecFor(v.id),
+        }))
         .filter((x) => x.done)
-        .map(({ n, title }) => ({ n, title }));
+        .map(({ n, title, id, youtubeId, durationSec }) => ({ n, title, id, youtubeId, durationSec }));
       return {
         scope: {
           kind: 'progress',
@@ -199,7 +212,7 @@ export const CourseTest: React.FC = () => {
     };
   };
 
-  const cacheKeyFor = (key: string) => `flo-quiz:v5:${activeCourse.id}:${key}:q${countFor(mode)}`;
+  const cacheKeyFor = (key: string) => `flo-quiz:v6:${activeCourse.id}:${key}:q${countFor(mode)}`;
 
   const current_scope = scopeFor(mode);
   let hasSaved = false;

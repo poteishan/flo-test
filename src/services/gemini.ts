@@ -7,13 +7,15 @@ export interface QuizQuestion {
   explanation: string;
   /** Seconds from the start of the video where the answer is explained (single-lecture tests only). */
   timestamp?: number;
+  /** Which lecture the timestamp belongs to (set for "My progress" tests, where questions come from several videos). */
+  videoId?: string;
 }
 
 /** What the test should cover. */
 export interface QuizScope {
   kind: 'course' | 'progress' | 'lecture';
   label: string; // shown in the UI, e.g. "Lecture 4: Loops"
-  videos: { n: number; title: string; youtubeId?: string; durationSec?: number }[]; // n = lecture number (1-based); durationSec = real video length, used to reject out-of-range timestamps
+  videos: { n: number; title: string; id?: string; youtubeId?: string; durationSec?: number }[]; // n = lecture number (1-based); durationSec = real video length, used to reject out-of-range timestamps
 }
 
 export interface QuizResult {
@@ -109,7 +111,8 @@ function buildPrompt(course: Course, count: number, scope: QuizScope, withVideo:
 
 Rules:
 - ${focus}
-- Infer the subject and difficulty level from the course title, description and lecture titles.
+- Difficulty: EASY to MEDIUM. Ask simple recall and basic-understanding questions about what the lecture itself teaches. No tricky edge cases, no multi-step puzzles, no advanced or "what if" extensions.
+- Ask ONLY about content that is actually taught, said or shown in the lecture. Never use outside knowledge, and never ask about related topics the lecture does not cover, even if they belong to the same subject. ${withVideo ? 'Every question must be answerable by someone who simply watched the video.' : 'Stick to the basic core concepts the lecture titles directly name; do not go beyond them.'}
 - No two questions should test the same idea.
 - Each question has exactly 4 options and exactly one correct answer.
 - Distractors must be plausible, not silly.
@@ -130,7 +133,7 @@ async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>
   const body = JSON.stringify({
     contents: [{ parts }],
     generationConfig: {
-      temperature: 0.8,
+      temperature: 0.5, // lower = sticks closer to the video instead of drifting
       responseMimeType: 'application/json',
       responseSchema: schema,
       ...extraConfig,
@@ -186,7 +189,7 @@ async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>
   return text;
 }
 
-function parseQuestions(text: string, count: number, withTimestamp: boolean): QuizQuestion[] {
+function parseQuestions(text: string, count: number, withTimestamp: boolean, minValid = 3): QuizQuestion[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
@@ -217,7 +220,7 @@ function parseQuestions(text: string, count: number, withTimestamp: boolean): Qu
           : undefined,
     }));
 
-  if (questions.length < 3) throw new Error('Gemini did not return enough valid questions. Please try again.');
+  if (questions.length < minValid) throw new Error('Gemini did not return enough valid questions. Please try again.');
   return questions;
 }
 
@@ -319,6 +322,50 @@ export async function generateCourseQuiz(
   const videoUrl = target?.youtubeId ? `https://www.youtube.com/watch?v=${target.youtubeId}` : undefined;
 
   let notice: string | undefined;
+
+  // "My progress": watch several of the completed lectures, so each question gets a timestamp in ITS OWN video.
+  if (effectiveScope.kind === 'progress') {
+    const MAX_VIDEOS = 5;
+    const linked = effectiveScope.videos.filter((v) => v.youtubeId && v.id);
+    if (linked.length > 0) {
+      // Pick up to MAX_VIDEOS lectures spread evenly across everything completed.
+      const picked =
+        linked.length <= MAX_VIDEOS
+          ? linked
+          : Array.from({ length: MAX_VIDEOS }, (_, i) => linked[Math.floor((i * linked.length) / MAX_VIDEOS)]);
+      const base = Math.floor(count / picked.length);
+      const extra = count % picked.length;
+
+      const results = await Promise.allSettled(
+        picked.map(async (v, i) => {
+          const n = base + (i < extra ? 1 : 0);
+          const url = `https://www.youtube.com/watch?v=${v.youtubeId}`;
+          const single: QuizScope = { kind: 'lecture', label: v.title, videos: [v] };
+          const text = await callGemini(
+            [{ file_data: { file_uri: url } }, { text: buildPrompt(course, n, single, true) }],
+            { mediaResolution: 'MEDIA_RESOLUTION_LOW' },
+            buildSchema(true),
+          );
+          const qs = await ensureTimestamps(parseQuestions(text, n, true, 1), url, v.durationSec);
+          return qs.map((q) => ({ ...q, videoId: v.id }));
+        }),
+      );
+
+      const all = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      if (all.length >= 3) {
+        if (results.some((r) => r.status === 'rejected')) {
+          notice = 'Some lectures could not be analyzed, so this test has fewer questions than requested.';
+        }
+        // Mix the lectures together so the test is not grouped by video.
+        for (let i = all.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [all[i], all[j]] = [all[j], all[i]];
+        }
+        return { questions: all, notice };
+      }
+      notice = 'Gemini could not analyze the completed videos, so this test has no timestamps. The videos must be public.';
+    }
+  }
 
   if (videoUrl) {
     try {
