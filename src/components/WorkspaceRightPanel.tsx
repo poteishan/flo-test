@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CourseTest } from './CourseTest';
 import { useApp } from '../context/AppContext';
 import { NotesEditor } from './NotesEditor';
@@ -36,6 +36,13 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'completed'>('all');
+
+  // The Test tab stays mounted (just hidden) once opened. Otherwise switching tabs destroyed the screen,
+  // so a test that was still being generated, or a quiz in progress, was lost.
+  const [testOpened, setTestOpened] = useState(workspaceRightTab === 'test');
+  useEffect(() => {
+    if (workspaceRightTab === 'test') setTestOpened(true);
+  }, [workspaceRightTab]);
 
   if (!activeCourse) return null;
 
@@ -100,11 +107,12 @@ export const WorkspaceRightPanel: React.FC<WorkspaceRightPanelProps> = ({
       </div>
 
       {/* Tab Body: Test vs Notes vs Playlist */}
-      {workspaceRightTab === 'test' ? (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {testOpened && (
+        <div className={`${workspaceRightTab === 'test' ? 'flex' : 'hidden'} flex-1 flex-col min-h-0 overflow-hidden`}>
           <CourseTest />
         </div>
-      ) : workspaceRightTab === 'notes' ? (
+      )}
+      {workspaceRightTab === 'test' ? null : workspaceRightTab === 'notes' ? (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <NotesEditor isMobileDrawer={isMobileDrawer} />
         </div>
