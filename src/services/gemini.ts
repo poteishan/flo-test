@@ -129,16 +129,46 @@ ${lectureList}`;
 }
 
 /** One Gemini call, with retry on overload and fallback across model names. Returns the raw text. */
+// "Thinking" is on by default and can add 10-40 s before the first word of the answer. Quiz questions do not need it.
+// Which switch a model accepts depends on its generation, so try them in turn and remember the one that works.
+const THINKING_OPTIONS: (Record<string, unknown> | null)[] = [
+  { thinkingLevel: 'minimal' }, // Gemini 3.x
+  { thinkingBudget: 0 }, // Gemini 2.5
+  null, // model accepts neither: leave the default
+];
+let thinkingIdx = 0;
+
+// Lecture videos change slowly and the speech carries the content, so one frame every 4 s is plenty.
+// 1 frame/s (the default) costs about twice the tokens, and long videos are slow mostly because of input size.
+let lowFpsOk = true;
+const videoPart = (url: string) =>
+  lowFpsOk ? { file_data: { file_uri: url }, video_metadata: { fps: 0.25 } } : { file_data: { file_uri: url } };
+
+/** Sends a video plus a prompt. If the API rejects the frame-rate setting, retries once with the default. */
+async function callWithVideo(url: string, text: string, extraConfig: Record<string, unknown>, schema: object): Promise<string> {
+  try {
+    return await callGemini([videoPart(url), { text }], extraConfig, schema);
+  } catch (e) {
+    if (lowFpsOk && e instanceof GeminiHttpError && e.status === 400) {
+      lowFpsOk = false;
+      return callGemini([videoPart(url), { text }], extraConfig, schema);
+    }
+    throw e;
+  }
+}
+
 async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>, schema: object): Promise<string> {
-  const body = JSON.stringify({
-    contents: [{ parts }],
-    generationConfig: {
-      temperature: 0.5, // lower = sticks closer to the video instead of drifting
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      ...extraConfig,
-    },
-  });
+  const makeBody = () =>
+    JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        temperature: 0.5, // lower = sticks closer to the video instead of drifting
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+        ...(THINKING_OPTIONS[thinkingIdx] ? { thinkingConfig: THINKING_OPTIONS[thinkingIdx] } : {}),
+        ...extraConfig,
+      },
+    });
 
   // Errors worth working around: model retired (404), per-model limit (429),
   // server error (500) and "high demand" overload (503). Each model has its own capacity.
@@ -156,9 +186,18 @@ async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY as string },
-          body,
+          body: makeBody(),
         },
       );
+      // This model does not accept the thinking setting: switch to the next option and repeat the same attempt.
+      if (res.status === 400 && thinkingIdx < THINKING_OPTIONS.length - 1) {
+        const err = await res.clone().text().catch(() => '');
+        if (/thinking/i.test(err)) {
+          thinkingIdx++;
+          attempt--;
+          continue;
+        }
+      }
       if (res.ok || !RETRYABLE.has(res.status)) break outer;
 
       lastStatus = res.status;
@@ -235,10 +274,18 @@ async function ensureTimestamps(
   maxSec: number | undefined,
 ): Promise<QuizQuestion[]> {
   const isValid = (t?: number) => t !== undefined && (!maxSec || t <= maxSec);
-  const badIdx = questions.map((q, i) => (isValid(q.timestamp) ? -1 : i)).filter((i) => i >= 0);
-  if (badIdx.length === 0) return questions;
-
   const fixed = questions.map((q) => ({ ...q }));
+
+  // Step 0 (instant): an over-range time like 2:20:15 on a 1-hour video was almost certainly meant as 20:15.
+  fixed.forEach((q) => {
+    if (maxSec && q.timestamp !== undefined && q.timestamp > maxSec && q.timestamp % 3600 <= maxSec) {
+      q.timestamp = q.timestamp % 3600;
+    }
+  });
+
+  // Only questions that still have no usable time cost another pass over the video.
+  const badIdx = fixed.map((q, i) => (isValid(q.timestamp) ? -1 : i)).filter((i) => i >= 0);
+  if (badIdx.length === 0) return fixed;
 
   // Step 1: ask Gemini to find the moments again, for just the questions that need it.
   try {
@@ -251,13 +298,9 @@ async function ensureTimestamps(
     const lengthText = maxSec
       ? ` The video is exactly ${fmtLength(maxSec)} long (${maxSec} seconds), so every timestamp MUST be between 0 and ${maxSec}.`
       : '';
-    const text = await callGemini(
-      [
-        { file_data: { file_uri: videoUrl } },
-        {
-          text: `Watch this video. For each numbered question below, give the moment in the video, in total SECONDS from the very start (a whole number, not H:MM:SS), where the answer is explained or shown.${lengthText}\n\n${list}\n\nReturn one item per question using its number as "index".`,
-        },
-      ],
+    const text = await callWithVideo(
+      videoUrl,
+      `Watch this video. For each numbered question below, give the moment in the video, in total SECONDS from the very start (a whole number, not H:MM:SS), where the answer is explained or shown.${lengthText}\n\n${list}\n\nReturn one item per question using its number as "index".`,
       { mediaResolution: 'MEDIA_RESOLUTION_LOW', temperature: 0.2 },
       {
         type: 'ARRAY',
@@ -341,8 +384,9 @@ export async function generateCourseQuiz(
           const n = base + (i < extra ? 1 : 0);
           const url = `https://www.youtube.com/watch?v=${v.youtubeId}`;
           const single: QuizScope = { kind: 'lecture', label: v.title, videos: [v] };
-          const text = await callGemini(
-            [{ file_data: { file_uri: url } }, { text: buildPrompt(course, n, single, true) }],
+          const text = await callWithVideo(
+            url,
+            buildPrompt(course, n, single, true),
             { mediaResolution: 'MEDIA_RESOLUTION_LOW' },
             buildSchema(true),
           );
@@ -369,8 +413,9 @@ export async function generateCourseQuiz(
 
   if (videoUrl) {
     try {
-      const text = await callGemini(
-        [{ file_data: { file_uri: videoUrl } }, { text: buildPrompt(course, count, effectiveScope, true) }],
+      const text = await callWithVideo(
+        videoUrl,
+        buildPrompt(course, count, effectiveScope, true),
         { mediaResolution: 'MEDIA_RESOLUTION_LOW' }, // keeps long videos within token limits
         buildSchema(true),
       );
