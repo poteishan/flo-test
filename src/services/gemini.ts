@@ -136,7 +136,7 @@ const THINKING_OPTIONS: (Record<string, unknown> | null)[] = [
   { thinkingBudget: 0 }, // Gemini 2.5
   null, // model accepts neither: leave the default
 ];
-let thinkingIdx = 0;
+let thinkingIdx = 0; // index of the option known to work (only updated after a request succeeds)
 
 // Lecture videos change slowly and the speech carries the content, so one frame every 4 s is plenty.
 // 1 frame/s (the default) costs about twice the tokens, and long videos are slow mostly because of input size.
@@ -150,14 +150,17 @@ async function callWithVideo(url: string, text: string, extraConfig: Record<stri
     return await callGemini([videoPart(url), { text }], extraConfig, schema);
   } catch (e) {
     if (lowFpsOk && e instanceof GeminiHttpError && e.status === 400) {
+      // Maybe the frame-rate setting was the problem: retry without it, and only remember that if it then works.
+      const retry = await callGemini([{ file_data: { file_uri: url } }, { text }], extraConfig, schema);
       lowFpsOk = false;
-      return callGemini([videoPart(url), { text }], extraConfig, schema);
+      return retry;
     }
     throw e;
   }
 }
 
 async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>, schema: object): Promise<string> {
+  let tIdx = thinkingIdx; // this request's thinking option; moves on if the API rejects it
   const makeBody = () =>
     JSON.stringify({
       contents: [{ parts }],
@@ -165,7 +168,7 @@ async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>
         temperature: 0.5, // lower = sticks closer to the video instead of drifting
         responseMimeType: 'application/json',
         responseSchema: schema,
-        ...(THINKING_OPTIONS[thinkingIdx] ? { thinkingConfig: THINKING_OPTIONS[thinkingIdx] } : {}),
+        ...(THINKING_OPTIONS[tIdx] ? { thinkingConfig: THINKING_OPTIONS[tIdx] } : {}),
         ...extraConfig,
       },
     });
@@ -189,15 +192,14 @@ async function callGemini(parts: unknown[], extraConfig: Record<string, unknown>
           body: makeBody(),
         },
       );
-      // This model does not accept the thinking setting: switch to the next option and repeat the same attempt.
-      if (res.status === 400 && thinkingIdx < THINKING_OPTIONS.length - 1) {
-        const err = await res.clone().text().catch(() => '');
-        if (/thinking/i.test(err)) {
-          thinkingIdx++;
-          attempt--;
-          continue;
-        }
+      // Google's 400 message is generic ("invalid argument"), so any 400 may be the thinking setting:
+      // try the next option and repeat the same attempt.
+      if (res.status === 400 && tIdx < THINKING_OPTIONS.length - 1) {
+        tIdx++;
+        attempt--;
+        continue;
       }
+      if (res.ok) thinkingIdx = tIdx; // remember what this model accepts
       if (res.ok || !RETRYABLE.has(res.status)) break outer;
 
       lastStatus = res.status;
